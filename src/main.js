@@ -1,22 +1,15 @@
 import { Plugin, PluginSettingTab, Setting } from "obsidian";
+import { matchUrl, replaceUrl } from "./utils.js"
 
-let proMap = {
-	ghproxy:{
-		home: url => `https://mirror.ghproxy.com/${url}`
-		,raw: url => `https://mirror.ghproxy.com/${url}`
-	}
-}
-
-let matches = {
-    "raw": (url) => url.startsWith("https://raw.githubusercontent.com/"),
-    "home": (url) => url.startsWith("https://github.com/")
-}
+let config = [
+    ["https://github.com/.*", "https://mirror.ghproxy.com/$0"],
+    ["https://raw.githubusercontent.com/.*", "https://mirror.ghproxy.com/$0"],
+    ["https://huggingface.co/(.*)", "https://hf-mirror.com/$1"]
+]
 
 function isMobile() {
     return window.obsidian && window.obsidian.isMobile === true;
 }
-
-import { matchUrl, replaceUrl } from './utils';
 
 // 代理访问
 function proxy(e) {
@@ -168,6 +161,55 @@ class ApElectron {
     }
 }
 
+class ApIframeFetch {
+    constructor() {
+        this.ap = null;
+        this.observer = null;
+        this.node = null;
+    }
+
+    /**
+     * 
+     * @param {ProxyGithub} plugin 
+     */
+    regedit(plugin) {
+        const hookFetch = (node) => {
+            this.node = node;
+            this.ap = node.contentWindow.fetch.bind(node.contentWindow);
+            node.contentWindow.fetch = (url, ...rest) => {
+                console.log("hook iframe fetch");
+                const context = { url };
+                plugin.matchAndReplaceUrl(context);
+                return this.ap(context.url, ...rest);
+            };
+        };
+
+        const iframe = document.querySelector('iframe[id^="smart_embed"]');
+        if (iframe) {
+            console.log("find iframe sync", iframe)
+            hookFetch(iframe);
+        } else {
+            this.observer = new MutationObserver((mutations) => {
+                mutations.forEach(mutation => {
+                    mutation.addedNodes.forEach(node => {
+                        if (node.id && node.id.startsWith('smart_embed')) {
+                            console.log("find iframe async", node)
+                            hookFetch(node);
+                        }
+                    });
+                });
+            });
+
+            this.observer.observe(document.body, { childList: true, subtree: true });
+        }
+    }
+
+    unRegedit() {
+        if (this.observer) { this.observer.disconnect(); }
+        if (this.node) { this.node.contentWindow.fetch = this.ap }
+    }
+}
+
 class ApFetch {
     constructor() {
         this.ap = null;
@@ -178,17 +220,17 @@ class ApFetch {
      * @param {ProxyGithub} plugin 
      */
     regedit(plugin) {
-        this.ap = window.fetch;
-        window.fetch = function (url, ...rest) {
-            console.log("hook electron send");
-            plugin.matchAndReplaceUrl({ url });
-            this.ap(url, ...rest);
-        }.bind(this);
-        console.log("ApFetch注册成功");
+        this.ap = window.fetch
+        window.fetch = (url, ...rest) => {
+            console.log("hook window fetch");
+            const context = { url };
+            plugin.matchAndReplaceUrl(context);
+            return this.ap(context.url, ...rest);
+        };
     }
 
     unRegedit() {
-        window.require("electron").ipcRenderer.send = this.ap;
+        window.fetch = this.ap
     }
 }
 
@@ -243,18 +285,15 @@ export default class ProxyGithub extends Plugin {
 
     // 匹配URL
     matchAndReplaceUrl(e) {
-        const config = proMap[this.settings.server]
-        if (!config) {
-            console.warn("配置不存在: %s", config)
-            return false
-        }
-        for (var key in matches) {
-            let item = matches[key]
-            if (e && e.url && item(e.url)) {
-                console.log("替换前的地址: %s", e.url)
-                e.url = config[key](e.url)
-                console.log("替换后的地址: %s", e.url)
-                return true;
+        for (let [match, replace] of config) {
+            if (e && e.url) {
+                let matches = matchUrl(match, e.url)
+                if (matches) {
+                    console.log("替换前的地址: %s", e.url)
+                    e.url = replaceUrl(matches, replace)
+                    console.log("替换后的地址: %s", e.url)
+                    return true;
+                }
             }
         }
         return false;
@@ -268,22 +307,21 @@ export default class ProxyGithub extends Plugin {
 class ProxyGithubInstance {
     constructor(plugin) {
         this.plugin = plugin;
-        this.hooks = new ApProxy();
         this.hooksList = [
+            new ApProxy(),
             new ApCapacitor(),
             new ApElectron(),
-            new ApFetch()
+            new ApFetch(),
+            new ApIframeFetch()
         ];
     }
 
     regedit() {
         this.hooksList.forEach(hook => hook.regedit(this.plugin));
-        this.hooks.regedit(this.plugin);
     }
 
     unRegedit() {
         this.hooksList.forEach(hook => hook.unRegedit());
-        this.hooks.unRegedit();
     }
 }
 
