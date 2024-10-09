@@ -6,7 +6,9 @@
   "scripts": {
     "test": "jest",
     "clean": "rm -rf dist",
-    "build": "npm run clean && mkdir -p dist && cp manifest.json dist/ && node build/compile.mjs"
+    "build": "npm run clean && mkdir -p dist && cp manifest.json dist/ && node build/compile.mjs",
+    "release": "npm run clean && mkdir -p dist && cp manifest.json dist/ && node build/compile.mjs production"
+
   },
   "jest": {
     "transform": {
