@@ -1,7 +1,7 @@
-import { Plugin, PluginSettingTab, Setting } from "obsidian";
+import { Plugin, PluginSettingTab, Setting, Platform } from "obsidian";
 import { matchUrl, replaceUrl } from "./utils.js"
 
-let config = [
+let rules = [
     ["https://github.com/.*", "https://mirror.ghproxy.com/$0"],
     ["https://raw.githubusercontent.com/.*", "https://mirror.ghproxy.com/$0"],
     ["https://huggingface.co/(.*)", "https://hf-mirror.com/$1"]
@@ -241,24 +241,20 @@ class ProxyGithubSettingTab extends PluginSettingTab {
         this.plugin = plugin
     }
     async display() {
-        this.containerEl.empty()
-        new Setting(this.containerEl)
-            .setName('代理服务器')
-            .setDesc(`通过选择不同的服务器来切换代理，可以解决某些情况下，某个服务器无法访问的情况。当前代理服务器：${this.plugin.settings.server}`)
-            // .setValue(this.plugin.settings.server) // <-- Add me!
-            .addDropdown(dropDown => {
-                // dropDown.addOption('fastgit', 'fastgit');
-                // dropDown.addOption('mtr', 'mtr');
-                dropDown.addOption('ghproxy', 'ghproxy');
-                // dropDown.addOption('gitclone', 'gitclone');
-                // dropDown.addOption('mirr', 'mirr');
-                dropDown.setValue(this.plugin.settings.server)
-                dropDown.onChange(async (value) =>	{
-                    this.plugin.settings.server=value
-                    // this.plugin.settings.server = value;
-                    await this.plugin.saveSettings();
-                });
-            });
+        this.containerEl.empty();
+        const setting = new Setting(this.containerEl)
+            .setName('代理规则')
+            .setDesc('通过编辑规则来切换代理，每行一个规则，格式为：匹配URL,替换URL');
+
+        const textAreaEl = setting.addTextArea(textAreaEl => {
+            textAreaEl.setValue(this.plugin.settings.rules.map(rule => rule.join(',')).join('\r\n'));
+            textAreaEl.onChange = async (event) => {
+                const value = event.target.value;
+                const rules = value.split(/\r?\n/).map(line => line.split(','));
+                this.plugin.settings.rules = rules;
+                await this.plugin.saveSettings();
+            };
+        })
     }
 }
 
@@ -272,26 +268,24 @@ export default class ProxyGithub extends Plugin {
         new window.Notice("添加 ProxyGithub 代理访问社区插件！");
         this.addSettingTab(new ProxyGithubSettingTab(this.app, this));
         this.proxyGithub.regedit();
-        this.settings = {server:'ghproxy'}
+        this.settings = { rules }
     }
     async loadSettings() {
-		this.settings = Object.assign({}, {server:'ghproxy'}, await this.loadData());
+		this.settings = Object.assign({}, { rules }, await this.loadData());
 	}
     async saveSettings() {
         await this.saveData(this.settings);
-		server = this.settings.server;
-		
 	}
 
     // 匹配URL
     matchAndReplaceUrl(e) {
-        for (let [match, replace] of config) {
+        for (let [match, replace] of this.settings.rules) {
             if (e && e.url) {
-                let matches = matchUrl(match, e.url)
+                let matches = matchUrl(match, e.url);
                 if (matches) {
-                    console.log("替换前的地址: %s", e.url)
-                    e.url = replaceUrl(matches, replace)
-                    console.log("替换后的地址: %s", e.url)
+                    console.log("替换前的地址: %s", e.url);
+                    e.url = replaceUrl(matches, replace);
+                    console.log("替换后的地址: %s", e.url);
                     return true;
                 }
             }
@@ -308,8 +302,8 @@ class ProxyGithubInstance {
     constructor(plugin) {
         this.plugin = plugin;
         this.hooksList = [
-            new ApProxy(),
-            new ApCapacitor(),
+            // new ApProxy(),
+            // new ApCapacitor(),
             new ApElectron(),
             new ApFetch(),
             new ApIframeFetch()
