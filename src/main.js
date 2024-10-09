@@ -176,11 +176,16 @@ class ApIframeFetch {
         const hookFetch = (node) => {
             this.node = node;
             this.ap = node.contentWindow.fetch.bind(node.contentWindow);
-            node.contentWindow.fetch = (url, ...rest) => {
+            node.contentWindow.fetch = (input, init) => {
                 console.log("hook iframe fetch");
-                const context = { url };
-                plugin.matchAndReplaceUrl(context);
-                return this.ap(context.url, ...rest);
+                if (typeof input === 'string') {
+                    input = { url: input }
+                    plugin.matchAndReplaceUrl(input);
+                    return this.ap(input.url, init);
+                } else {
+                    plugin.matchAndReplaceUrl(input);
+                    return this.ap(input, init);
+                }
             };
         };
 
@@ -220,12 +225,18 @@ class ApFetch {
      * @param {ProxyGithub} plugin 
      */
     regedit(plugin) {
-        this.ap = window.fetch
-        window.fetch = (url, ...rest) => {
+        this.ap = window.fetch;
+        window.fetch = (input, init) => {
             console.log("hook window fetch");
-            const context = { url };
-            plugin.matchAndReplaceUrl(context);
-            return this.ap(context.url, ...rest);
+            if (typeof input === 'string') {
+                const context = { url: input }
+                plugin.matchAndReplaceUrl(context);
+                return this.ap(context.url, init);
+            } else {
+                const context = { url: input.url }
+                plugin.matchAndReplaceUrl(input);
+                return this.ap({ ...input, ...context }, init);
+            }
         };
     }
 
@@ -307,7 +318,7 @@ class ProxyGithubInstance {
             // new ApProxy(),
             // new ApCapacitor(),
             new ApElectron(),
-            new ApFetch(),
+            // new ApFetch(),
             new ApIframeFetch()
         ];
     }
