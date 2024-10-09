@@ -242,19 +242,21 @@ class ProxyGithubSettingTab extends PluginSettingTab {
     }
     async display() {
         this.containerEl.empty();
-        const setting = new Setting(this.containerEl)
+        new Setting(this.containerEl)
             .setName('代理规则')
-            .setDesc('通过编辑规则来切换代理，每行一个规则，格式为：匹配URL,替换URL');
-
-        const textAreaEl = setting.addTextArea(textAreaEl => {
-            textAreaEl.setValue(this.plugin.settings.rules.map(rule => rule.join(',')).join('\r\n'));
-            textAreaEl.onChange = async (event) => {
-                const value = event.target.value;
-                const rules = value.split(/\r?\n/).map(line => line.split(','));
-                this.plugin.settings.rules = rules;
-                await this.plugin.saveSettings();
-            };
-        })
+            .setDesc('通过编辑规则来切换代理，每行一个规则，格式为：匹配URL,替换URL')
+            .addTextArea((textArea) => {
+                textArea.inputEl.setAttr('rows', 10);
+                textArea.inputEl.setAttr('cols', 80);
+                textArea
+                    .setPlaceholder('匹配URL,替换URL')
+                    .setValue(this.plugin.settings.rules.map(rule => rule.join(',')).join('\n'));
+                textArea.inputEl.onblur = (e) => {
+                    const patterns = e.target.value;
+                    this.plugin.settings.rules = patterns.split('\n').map(line => line.split(','));
+                    this.plugin.saveSettings();
+                };
+            });
     }
 }
 
