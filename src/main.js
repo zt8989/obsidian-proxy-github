@@ -277,11 +277,12 @@ export default class ProxyGithub extends Plugin {
         this.proxyGithub = new ProxyGithubInstance(this);
     }
 
-    onload() {
+    async onload() {
+        await this.loadSettings();
+
         new window.Notice("添加 ProxyGithub 代理访问社区插件！");
         this.addSettingTab(new ProxyGithubSettingTab(this.app, this));
         this.proxyGithub.regedit();
-        this.settings = { rules }
     }
     async loadSettings() {
 		this.settings = Object.assign({}, { rules }, await this.loadData());
