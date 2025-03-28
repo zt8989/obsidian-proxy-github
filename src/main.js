@@ -2,8 +2,8 @@ import { Plugin, PluginSettingTab, Setting, Platform } from "obsidian";
 import { matchUrl, replaceUrl } from "./utils.js"
 
 let rules = [
-    ["https://github.com/.*", "https://mirror.ghproxy.com/$0"],
-    ["https://raw.githubusercontent.com/.*", "https://mirror.ghproxy.com/$0"],
+    ["https://github.com/.*", "https://ghfast.top/$0"],
+    ["https://raw.githubusercontent.com/.*", "https://ghfast.top/$0"],
     ["https://huggingface.co/(.*)", "https://hf-mirror.com/$1"]
 ]
 
